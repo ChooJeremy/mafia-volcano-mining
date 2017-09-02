@@ -1,5 +1,4 @@
 script "volcano_mining.ash";
-notify CrankyOne;
 since r15029;
 
 import <zlib.ash>;
@@ -22,30 +21,30 @@ setvar("vmine_moodexec", false);
 boolean MINING_MOODEXEC = to_boolean(vars["vmine_moodexec"]);
 
 //Only mine direct sparkles in the first two rows if true, mine until gold if false
-setvar("vmine_lazyFarm", false);
+setvar("vmine_lazyFarm", true);
 boolean LAZY_FARM = to_boolean(vars["vmine_lazyFarm"]);
 
 //How many turns you want to have left when finished mining
-setvar("vmine_numTurnsToLeave", 5);
+setvar("vmine_numTurnsToLeave", 0);
 int NUM_TURNS_TO_LEAVE = to_int(vars["vmine_numTurnsToLeave"]);
 
 //In seconds, This will allow you to add delays after each mining attempt, used
 //to spread out server load especially if you are starting script and letting
 //it run while you go do other things and don't care when it finishes
-setvar("vmine_delayBetweenMines", 0);
+setvar("vmine_delayBetweenMines", 5);
 int DELAY_BETWEEN_MINES = to_int(vars["vmine_delayBetweenMines"]);
 
 //Automatically use potions of detection before attempting to parse a mine if true
-setvar("vmine_autoUpDetection", true);
+setvar("vmine_autoUpDetection", false);
 boolean AUTO_UP_DETECTION = to_boolean(vars["vmine_autoUpDetection"]);
 
 //Whether to use kol's healing script, if set to false will attempt custom logic to heal a point
-setvar("vmine_useMafiaRestore", true);
+setvar("vmine_useMafiaRestore", false);
 boolean USE_MAFIA_RESTORE = to_boolean(vars["vmine_useMafiaRestore"]);
 
 //Determines if you will use a healing skill or just go to docs, a value of $skill[none] means goto doc, otherwise attempt to use skill provided, if that doesn't work then it will still go to docs
 //Note only used if useMafiaRestore = false;
-setvar("vmine_healingSkill", "none");
+setvar("vmine_healingSkill", "cannelloni cocoon");
 skill HEALING_SKILL = vars["vmine_healingSkill"].to_skill();
 //Some example skills to set vmine_healingSkill to
 //"lasagna bandages", "tongue of the walrus", "cannelloni cocoon", "shake it off"
@@ -193,6 +192,7 @@ void endMiningOperation() {
 	print("Number of turns used: " + numTurns, "blue");
 	print("Average turns per gold: " + turnsPerGold, "blue");
 	print("Total autosale price of gold: " + amtProfit, "blue");
+	print("Profit per adventure: ~" + (amtProfit/numTurns));
 }
 
 void abortMining(string reason) {
@@ -318,17 +318,20 @@ void updateHeatmapFromSpot(Spot startSpot) {
 			calcPathsFromSpot(currentMine.spots[startSpot.col][startSpot.row + 1], "", 0);
 }
 
-void parseMine() {
+//Attempts to parse the current mine on the screen
+//Returns if the mine is a new mine (i.e. if true, you cannot immediately choose to find an new mine)
+//firstTime: true only if it's the first time parsing this mine (It will then re-create new objects for all the Spot in the mine.)
+boolean parseMine(boolean firstTime) {
+	boolean isNewMine = true;
 	//string page = visit_url("place.php?whichplace=desertbeach&action=db_crimbo14mine");
 	if ((have_effect($effect[object detection]) == 0) && (AUTO_UP_DETECTION == true))
 		cli_execute("use potion of detection");
 	buffer page = visit_url("mining.php?mine=6");
 	if (page.contains_text("way too beaten up")) {
-		restoreMinHP();
-		page = visit_url("mining.php?mine=6");
+		abortMining("Healing required");
 	}
 	if (!page.contains_text("INSTRUCTIONS: Starting at the bottom of the mine"))
-		abort("Unable to access the Velvet/Gold Mine.  Please manually verify that you can get to it.");
+		abort("Unable to access the Velvet/Gold Mine. Please manually verify that you can get to it.");
 	if (page.contains_text("<table cellpadding=0 cellspacing=0 border=0 background=")) {
 		page.substring(page.index_of("<table cellpadding=0 cellspacing=0 border=0 background="));
 		for counter from 0 to 54 {
@@ -336,7 +339,10 @@ void parseMine() {
 			int colNdx = counter % 8;
 			if (rowNdx > 0 && rowNdx < 7) {
 				if (colNdx > 0 && colNdx < 7) {	
-					Spot newSpot = newSpot(counter, colNdx, rowNdx);
+					Spot newSpot = currentMine.spots[colNdx][rowNdx];
+					if(firstTime) {
+						newSpot = newSpot(counter, colNdx, rowNdx);
+					}
 					newSpot.costToGetTo = 7 - rowNdx;
 					string tmpPathStr = "";
 					for  i from rowNdx to 6 {
@@ -347,13 +353,26 @@ void parseMine() {
 					
 					if (page.contains_text("Promising Chunk of Wall (" + colNdx + "," + rowNdx + ")")) {
 						currentMine.interestingSpots[count(currentMine.interestingSpots)] = newSpot;
-						if (rowNdx > 4)
-							currentMine.nearInterestingSpots[count(currentMine.nearInterestingSpots)] = newSpot;
+						if (rowNdx > 4) {
+							//Make sure it's not already in the array
+							boolean found = false;
+							foreach spotNdx in currentMine.nearInterestingSpots {
+								if (currentMine.nearInterestingSpots[spotNdx].counter == newSpot.counter) {
+									found = true;
+								}
+							}	
+							if(!found) {
+								currentMine.nearInterestingSpots[count(currentMine.nearInterestingSpots)] = newSpot;
+								print("Found a new spot not already in the spot list, adding...");
+							}
+						}
 						newSpot.isInteresting = true;
 					}
 					if (page.contains_text("Open Cavern (" + colNdx + "," + rowNdx + ")")) {
 						currentMine.emptySpots[count(currentMine.emptySpots)] = newSpot;
 						newSpot.costToGetTo = 0;
+						newSpot.mined = true;
+						isNewMine = false;
 					}
 				}
 			}
@@ -362,6 +381,7 @@ void parseMine() {
 			updateHeatmapFromSpot(currentMine.emptySpots[tmpSpotNdx]);
 		}
 	}
+	return isNewMine;
 }
 
 void figureRoute() {
@@ -390,7 +410,9 @@ void printMine() {
 		row.append("| ");
 		
 		for colNdx from 1 to 6 {
-			if (currentMine.spots[colNdx][rowNdx].isInteresting)
+			if(currentMine.spots[colNdx][rowNdx].mined) 
+				row.append(" X ");
+			else if (currentMine.spots[colNdx][rowNdx].isInteresting)
 				row.append(" " + currentMine.spots[colNdx][rowNdx].numDirects + " ");
 			else
 				row.append(" _ ");
@@ -434,7 +456,7 @@ void gotoNextMine() {
 
 void mineSpot(Spot spotToMine) {
 	if (my_hp() == 0) {
-		restoreMinHP();
+		abortMining("Healing required");
 	}
 	
 	if (spotToMine.mined == true)
@@ -443,6 +465,9 @@ void mineSpot(Spot spotToMine) {
 	if (my_adventures() <= NUM_TURNS_TO_LEAVE)
 		abortMining("At minimum number of turns left");
 	
+	print("Want to mine: " + spotToMine.counter);
+	waitq(DELAY_BETWEEN_MINES);
+
 	string result = visit_url("mining.php?mine=6&which=" + spotToMine.counter + "&pwd");
 	int[item] itemsFound = extract_items(result);
 	if (spotToMine.isInteresting) {
@@ -459,6 +484,8 @@ void mineSpot(Spot spotToMine) {
 			currentOperation.numCaveIns += 1;
 		}
 	}
+
+	print ("Finished mining " + spotToMine.counter);
 	
 	spotToMine.mined = true;
 	spotToMine.costToGetTo = 0;
@@ -468,8 +495,10 @@ void mineSpot(Spot spotToMine) {
 	if ( MINING_MOODEXEC )
 		cli_execute("mood execute");
 	
-	if ( DELAY_BETWEEN_MINES > 0 )
-		waitq(DELAY_BETWEEN_MINES);
+	if ( DELAY_BETWEEN_MINES > 0 ) {
+		//waitq(DELAY_BETWEEN_MINES);
+
+	}
 }
 
 void mineChainSpot(Spot spotToMine) {
@@ -580,9 +609,13 @@ int findCheapestSpot(Spot[int] listOfSpots) {
 	int cheapestFound = 10000;
 	boolean foundViableSpot = false;
 	Spot cheapestSpot = listOfSpots[0];
+
 	foreach spotNdx in listOfSpots {
+		print(listOfSpots[spotNdx].counter + ": C: " + listOfSpots[spotNdx].costToGetTo + ", L: " + cheapestFound + (listOfSpots[spotNdx].mined ? " (M)" : ""));
 		if ((listOfSpots[spotNdx].costToGetTo < cheapestFound) && !listOfSpots[spotNdx].mined) {
+			//print("New cheapest spot found");
 			cheapestSpot = listOfSpots[spotNdx];
+			cheapestFound = listOfSpots[spotNdx].costToGetTo;
 			foundViableSpot = true;
 		}
 	}
@@ -594,43 +627,69 @@ int findCheapestSpot(Spot[int] listOfSpots) {
 
 void handleCurrentMine() {
 	if (have_effect($effect[object detection]) == 0 && !AUTO_UP_DETECTION) {
-		abortMining("This script requires that you have the " + $effect[object detection] + " effect active while starting the mining process");
 	}
 
-	parseMine(); //First thing to do is parse the mine
+	boolean mineFirstTurn = parseMine(true); //First thing to do is parse the mine
 	//useTestMine(0);
 	calculateLongestChain(); //Then calculate longest chain
 
 	printMine();
-	//printPaths();
 
 	// Look for sparkles in the first three rows
 	int cheapestCounter = findCheapestSpot(currentMine.nearInterestingSpots);
 
 	// No sparkles in first two rows
-	if (cheapestCounter == -1) {
-		currentOperation.numCavesSkipped += 1;
-		mineSpot(currentMine.spots[1][6]);
-		return;
+	if (cheapestCounter == -1 && mineFirstTurn) {
+		print("No sparkles found in first 2 rows");
+		if ((have_effect($effect[object detection]) == 0))
+			cli_execute("use potion of detection");
+
+		print("Using potion, re-doing...");
+		//Redo everything
+		parseMine(false);
+		calculateLongestChain();
+		printMine();
+
+		cheapestCounter = findCheapestSpot(currentMine.nearInterestingSpots);
+
+		if(cheapestCounter == -1) {
+			abortMining("No sparkles found in first 2 rows. Please verify.");
+			currentOperation.numCavesSkipped += 1;
+			mineSpot(currentMine.spots[1][6]);
+			return;
+		}
 	}
 	
 	if (LAZY_FARM == true) {
 		while (cheapestCounter != -1) {
 			Spot cheapestSpot = findSpotByCounter(cheapestCounter);
+			print("Cost to reach here: " + cheapestSpot.costToGetTo);
+			print("Want to mine: " + cheapestSpot.counter);
+
 			if (cheapestSpot.costToGetTo > 1) {
-				currentOperation.numCavesSkipped += 1;
-				if (count(currentMine.emptySpots) == 0)
-					mineSpot(currentMine.spots[1][6]);
-				return;
+				if(!mineFirstTurn) {
+					currentOperation.numCavesSkipped += 1;
+					print("Too costly to continue, skipping cave...");
+					return;
+				} else if (cheapestSpot.costToGetTo > 2)
+					abortMining("No sparkles found in first 2 rows");
+				//Otherwise this has no first sparkle spot, need to waste one.
 			}
 			if ((my_adventures() - NUM_TURNS_TO_LEAVE) < cheapestSpot.costToGetTo) {
 				currentOperation.numCavesSkipped += 1;
 				doneMining = true;
+				print("Cave completed - turns left < cheapest spot");
 				return;
 			}
 			mineToSpot(cheapestSpot);
-			if (currentMine.goldFound > 0)
+			if (currentMine.goldFound > 0) {
+				print("Cave completed - gold found");
 				break;
+			}
+			mineFirstTurn = false;
+			parseMine(false);
+			calculateLongestChain();
+			printMine();
 			cheapestCounter = findCheapestSpot(currentMine.nearInterestingSpots);
 		}
 	} else {
@@ -656,11 +715,12 @@ void handleCurrentMine() {
 	}
 
 	currentOperation.numCavesFullyExplored += 1;
+	print("Cave completed, moving on...");
 }
 
 void initMiningOperations() {
-	cli_execute("outfit save Backup");
-	outfit(MINING_OUTFIT);
+	//cli_execute("outfit save Backup");
+	//outfit(MINING_OUTFIT);
 	
 	currentOperation = new MiningOperation();
 	currentOperation.startingNumGold = item_amount($item[1,970 carat gold]);
@@ -679,7 +739,9 @@ void mine_volcano() {
 	int counter = 0;
 	
 	while(counter < MAX_CAVES && my_adventures() > 0 && !doneMining) {
-		gotoNextMine();
+		if(counter != 0) {
+			gotoNextMine();
+		}
 		handleCurrentMine();
 		counter += 1;
 	}
@@ -704,10 +766,10 @@ void mine_volcano(int turnsToMine, boolean lazyFarm, boolean autoDetection, stri
 	mine_volcano();
 }
 
-void main(int turnsToMine, boolean lazyFarm, boolean autoDetection) {
+void main(int turnsToMine) {
 	if (turnsToMine != 0)
 		NUM_TURNS_TO_LEAVE = my_adventures() - turnsToMine;
-	LAZY_FARM = lazyFarm;
-	AUTO_UP_DETECTION = autoDetection;
+	LAZY_FARM = true;
+	AUTO_UP_DETECTION = false;
 	mine_volcano();
 }
