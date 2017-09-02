@@ -1,4 +1,4 @@
-# KOLMafia Volcano mining
+# KoLMafia Volcano mining
 
 The rules of optimal volcano mining has changed since the previous script. Notably, you no longer want any unsmoothed velvet, they're worthless. You also don't want to spend any turns mining a spot without sparkles. Notably, this means you should not require any potion of detection in most mines.
 
@@ -21,7 +21,8 @@ Whenever this script has to use a potion of detection to mine to a sparkle, beca
 | _ | * | _ | * | * | _ |
 | _ | _ | _ | _ | _ | _ |
       ^
-      The script will mine here, but this only allows it to reach a single sparkle instead of 2.```
+      The script will mine here, but this only allows it to reach a single sparkle instead of 2.
+```
 
 ## Logging
 
