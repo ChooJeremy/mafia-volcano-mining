@@ -2,6 +2,22 @@
 
 The rules of optimal volcano mining has changed since the previous script. Notably, you no longer want any unsmoothed velvet, they're worthless. You also don't want to spend any turns mining a spot without sparkles. Notably, this means you should not require any potion of detection in most mines.
 
+```
+Sample result with this formula:
+Cave completed - turns left < cheapest spot
+Number of Fully Explored Caves: 218
+Number of Caves skipped because of turn expense: 28
+Number of non-item spaces mined: 243
+Number of unsmoothed velvet found: 0
+Number of 1,970 carat gold found: 103
+Number of New Age healing crystal found: 151
+Number of seconds it took: 2738.0
+Number of turns used: 515
+Average turns per gold: 5.0
+Total autosale price of gold: 2029100
+Profit per adventure: ~3940
+```
+
 ## Changes
 
 This volcano mining script follows the following ruleset:
