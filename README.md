@@ -28,6 +28,8 @@ This volcano mining script follows the following ruleset:
 * If there are no more visible sparkles, find a new mine
   * If you can't find a new mine (Lowest row has no sparkles), then use a potion of detection, and mine the spot in the lowest row that would reach a sparkle in the 2nd lowest row.
 
+This script also no longer does any outfit checking, it just starts mining with whatever you have equipped (so make sure you have your volcano mining outfit equipped first before starting!) It will also not do any healing, I think (untested).
+
 ## Problems
 
 Whenever this script has to use a potion of detection to mine to a sparkle, because there are no sparkles in the lowest row, it mines for the leftmost sparkle, not the sparkle with the largest grouping of sparkle 
