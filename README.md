@@ -2,8 +2,8 @@
 
 The rules of optimal volcano mining has changed since the previous script. Notably, you no longer want any unsmoothed velvet, they're worthless. You also don't want to spend any turns mining a spot without sparkles. Notably, this means you should not require any potion of detection in most mines.
 
-```
 Sample result with this formula:
+```
 Cave completed - turns left < cheapest spot
 Number of Fully Explored Caves: 218
 Number of Caves skipped because of turn expense: 28
@@ -27,7 +27,6 @@ This volcano mining script follows the following ruleset:
 * If you find gold, find a new mine
 * If there are no more visible sparkles, find a new mine
   * If you can't find a new mine (Lowest row has no sparkles), then use a potion of detection, and mine the spot in the lowest row that would reach a sparkle in the 2nd lowest row.
-  * If there are no sparkles left in the lowest 2 rows (Should be very rare), abort. (Please verify if the mine parsing is correct)
 
 ## Problems
 

@@ -653,7 +653,7 @@ void handleCurrentMine() {
 		cheapestCounter = findCheapestSpot(currentMine.nearInterestingSpots);
 
 		if(cheapestCounter == -1) {
-			abortMining("No sparkles found in first 2 rows. Please verify.");
+			//abortMining("No sparkles found in first 2 rows. Please verify.");
 			currentOperation.numCavesSkipped += 1;
 			mineSpot(currentMine.spots[1][6]);
 			return;
